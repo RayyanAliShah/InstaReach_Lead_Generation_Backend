@@ -21,35 +21,35 @@ import traceback
 from pydantic import BaseModel
 from fastapi import HTTPException
 # DataBase imports
-from sqlalchemy.orm import Session
-from fastapi import Depends
-from database import get_db, save_leads_to_db, get_user_stats, get_leads,delete_lead, delete_category_leads, delete_multiple_leads,update_lead_note,update_lead_status,get_existing_identifiers
+# from sqlalchemy.orm import Session
+# from fastapi import Depends
+from database import db, save_leads_to_db, get_user_stats, get_leads,delete_lead, delete_category_leads, delete_multiple_leads,update_lead_note,update_lead_status,get_existing_identifiers
 from typing import List
 import json  # <--- ADD THIS AT THE TOP
 
 
-#FireBase
-import firebase_admin
-from firebase_admin import credentials, firestore
+# #FireBase
+# import firebase_admin
+# from firebase_admin import credentials, firestore
 
-# 1. Load your service account key
-cred = credentials.Certificate("serviceAccountKey.json")
+# # 1. Load your service account key
+# cred = credentials.Certificate("serviceAccountKey.json")
 
-# 2. Initialize the app
-# Check if it's already initialized to avoid errors during reloads
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
+# # 2. Initialize the app
+# # Check if it's already initialized to avoid errors during reloads
+# if not firebase_admin._apps:
+#     firebase_admin.initialize_app(cred)
 
-# 3. Get the database client
-db = firestore.client()
+# # 3. Get the database client
+# db = firestore.client()
 
-# --- Example: How to save a lead ---
-# You can use this inside your API route later
-# doc_ref = db.collection("leads").add({
-#     "name": "Rayyan",
-#     "email": "rayyan@example.com"
-# })
-# #######
+# # --- Example: How to save a lead ---
+# # You can use this inside your API route later
+# # doc_ref = db.collection("leads").add({
+# #     "name": "Rayyan",
+# #     "email": "rayyan@example.com"
+# # })
+# # #######
 
 
 
@@ -95,7 +95,7 @@ async def enrich_lead(result, website):
 
 # --- MAIN SEARCH ENDPOINT (NO JUMPING BACK FIX) ---
 @app.get("/api/search")
-async def search_leads(query: str, user_email: str, limit: int = 10, db: Session = Depends(get_db)):
+async def search_leads(query: str, user_email: str, limit: int = 10):
     async def event_generator():
         # 1. Connection Start
         yield json.dumps({"status": "init", "current": 0, "total": limit, "message": "Connecting to Google Maps..."}) + "\n"
@@ -103,7 +103,7 @@ async def search_leads(query: str, user_email: str, limit: int = 10, db: Session
 
         # Load existing leads from database
         print(f"\n🔍 Loading existing leads for {user_email}...")
-        existing_leads = get_existing_identifiers(db, user_email)
+        existing_leads = get_existing_identifiers(user_email)
         print(f"   Found {len(existing_leads['websites'])} websites, {len(existing_leads['phones'])} phones, {len(existing_leads['names'])} names in database")
         
         all_leads = []
@@ -333,7 +333,7 @@ class FetchRequest(BaseModel):
 
 # Add this class near other models
 class DeleteBulkRequest(BaseModel):
-    lead_ids: List[int]
+    lead_ids: List[str]
 
 
 class DeleteCategoryRequest(BaseModel):
@@ -341,16 +341,16 @@ class DeleteCategoryRequest(BaseModel):
     category: str
 
 class UpdateNoteRequest(BaseModel):
-    lead_id: int
+    lead_id: str
     note: str
 
 class UpdateStatusRequest(BaseModel):
-    lead_id: int
+    lead_id: str
     new_status: str
 
 @app.post("/api/delete-category")
-def api_delete_cat(data: DeleteCategoryRequest, db: Session = Depends(get_db)):
-    count = delete_category_leads(db, data.user_email, data.category)
+def api_delete_cat(data: DeleteCategoryRequest):
+    count = delete_category_leads(data.user_email, data.category)
     return {"deleted_count": count}
 
 @app.post("/api/login")
@@ -365,21 +365,21 @@ async def login(data: LoginSchema):
 
 # --- DATABASE API ---
 @app.post("/api/save-leads")
-def api_save(data: SaveRequest, db: Session = Depends(get_db)):
-    return save_leads_to_db(db, data.user_email, data.category, data.leads)
+def api_save(data: SaveRequest):
+    return save_leads_to_db(data.user_email, data.category, data.leads)
 
 @app.post("/api/dashboard-stats")
-def api_stats(data: UserRequest, db: Session = Depends(get_db)):
-    return get_user_stats(db, data.user_email)
+def api_stats(data: UserRequest):
+    return get_user_stats( data.user_email)
 
 @app.post("/api/fetch-category")
-def api_fetch(data: FetchRequest, db: Session = Depends(get_db)):
-    return get_leads(db, data.user_email, data.category)
+def api_fetch(data: FetchRequest):
+    return get_leads(data.user_email, data.category)
 
 # --- BULK DELETE ENDPOINT ---
 @app.post("/api/delete-bulk")
-def api_delete_bulk(data: DeleteBulkRequest, db: Session = Depends(get_db)):
-    success = delete_multiple_leads(db, data.lead_ids)
+def api_delete_bulk(data: DeleteBulkRequest):
+    success = delete_multiple_leads(data.lead_ids)
     return {"success": success}
 
 # --- UPDATED EXPORT ENDPOINT (CSV & XLSX) ---
@@ -412,12 +412,12 @@ async def export_leads(leads: list[dict], format: str):
         )
 
 @app.post("/api/update-note")
-def api_update_note(data: UpdateNoteRequest, db: Session = Depends(get_db)):
-    return {"success": update_lead_note(db, data.lead_id, data.note)}
+def api_update_note(data: UpdateNoteRequest):
+    return {"success": update_lead_note(data.lead_id, data.note)}
 
 @app.post("/api/update-status")
-def api_update_status(data: UpdateStatusRequest, db: Session = Depends(get_db)):
-    return {"success": update_lead_status(db, data.lead_id, data.new_status)}
+def api_update_status(data: UpdateStatusRequest):
+    return {"success": update_lead_status(data.lead_id, data.new_status)}
 
 
 # --- 2. SINGLE PROCESS RUNNER ---
