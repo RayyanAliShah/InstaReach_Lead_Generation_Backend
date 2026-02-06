@@ -58,12 +58,11 @@ app = FastAPI()
 # Allow frontend to communicate
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"], 
+    allow_origins=["*"],  # <--- CHANGE THIS. "*" means "Allow Any Website"
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # YOUR KEY
 SERPAPI_KEY = "4590bd7986d4d5698fb44c3758d2ded46b093cf5891ccacabaa190643a151878"
 
