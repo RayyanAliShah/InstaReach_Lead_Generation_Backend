@@ -102,9 +102,23 @@ async def search_leads(query: str, user_email: str, limit: int = 10):
         await asyncio.sleep(0.05) 
 
         # Load existing leads from database
+        # print(f"\n🔍 Loading existing leads for {user_email}...")
+        # existing_leads = get_existing_identifiers(user_email)
+        # print(f"   Found {len(existing_leads['websites'])} websites, {len(existing_leads['phones'])} phones, {len(existing_leads['names'])} names in database")
+        # Load existing leads from FIREBASE
+        
         print(f"\n🔍 Loading existing leads for {user_email}...")
-        existing_leads = get_existing_identifiers(user_email)
-        print(f"   Found {len(existing_leads['websites'])} websites, {len(existing_leads['phones'])} phones, {len(existing_leads['names'])} names in database")
+        
+        # --- FIX: Run Database call in a separate thread to prevent freezing ---
+        loop = asyncio.get_running_loop()
+        try:
+            existing_leads = await loop.run_in_executor(None, lambda: get_existing_identifiers(user_email))
+            print(f"   Found {len(existing_leads['websites'])} websites in database")
+        except Exception as e:
+            print(f"❌ Database Error (Skipping deduplication): {e}")
+            # If DB fails, just start empty so the user still gets leads
+            existing_leads = {'websites': set(), 'phones': set(), 'names': set()}
+        # -----------------------------------------------------------------------
         
         all_leads = []
         start_index = 0
