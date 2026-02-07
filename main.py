@@ -106,18 +106,27 @@ async def search_leads(query: str, user_email: str, limit: int = 10):
         # existing_leads = get_existing_identifiers(user_email)
         # print(f"   Found {len(existing_leads['websites'])} websites, {len(existing_leads['phones'])} phones, {len(existing_leads['names'])} names in database")
         # Load existing leads from FIREBASE
-        
+
+        # Load existing leads from FIREBASE
         print(f"\n🔍 Loading existing leads for {user_email}...")
         
-        # --- FIX: Run Database call in a separate thread to prevent freezing ---
-        loop = asyncio.get_running_loop()
+        # --- NEW FIX: Safety Timeout ---
+        # This prevents the "Stuck" error. If DB is slow, we skip it and keep going.
         try:
-            existing_leads = await loop.run_in_executor(None, lambda: get_existing_identifiers(user_email))
+            loop = asyncio.get_running_loop()
+            # We give the database exactly 5 seconds to answer
+            existing_leads = await asyncio.wait_for(
+                loop.run_in_executor(None, lambda: get_existing_identifiers(user_email)),
+                timeout=5.0 
+            )
             print(f"   Found {len(existing_leads['websites'])} websites in database")
-        except Exception as e:
-            print(f"❌ Database Error (Skipping deduplication): {e}")
-            # If DB fails, just start empty so the user still gets leads
+        except asyncio.TimeoutError:
+            print("⚠️ Database check timed out - Skipping deduplication to keep app fast")
             existing_leads = {'websites': set(), 'phones': set(), 'names': set()}
+        except Exception as e:
+            print(f"❌ Database Error: {e}")
+            existing_leads = {'websites': set(), 'phones': set(), 'names': set()}
+        # -------------------------------
         # -----------------------------------------------------------------------
         
         all_leads = []
